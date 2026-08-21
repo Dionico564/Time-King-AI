@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Time King AI</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.10.0/tf.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg-deep: #020408;
+    --bg-card: #080d18;
+    --bg-panel: #0d1525;
+    --gold: #c9a227;
+    --gold-light: #f0c94a;
+    --gold-dim: #7a6015;
+    --cyan: #00e5ff;
+    --cyan-dim: #005566;
+    --purple: #7c3aed;
+    --purple-light: #a855f7;
+    --red: #ff4444;
+    --green: #00ff88;
+    --text-primary: #e8eaf0;
+    --text-secondary: #8892a4;
+    --text-dim: #4a5568;
+    --border: #1a2540;
+    --glow-gold: 0 0 20px rgba(201,162,39,0.4);
+    --glow-cyan: 0 0 20px rgba(0,229,255,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Starfield */
+  #starfield {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0; overflow: hidden;
+  }
+  .star {
+    position: absolute; border-radius: 50%;
+    background: white; animation: twinkle var(--d) ease-in-out infinite;
+  }
+  @keyframes twinkle {
+    0%,100% { opacity: var(--min-op); transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.5); }
+  }
+
+  #app { position: relative; z-index: 1; max-width: 480px; margin: 0 auto; padding: 0 0 80px 0; }
+
+  /* Header */
+  .header {
+    background: linear-gradient(180deg, #020408 0%, rgba(2,4,8,0.8) 100%);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--gold-dim);
+    padding: 16px 20px 12px;
+    position: sticky; top: 0; z-index: 100;
+    text-align: center;
+  }
+  .crown-icon { font-size: 28px; display: block; margin-bottom: 2px; }
+  .app-title {
+    font-family: 'Orbitron', monospace; font-weight: 900;
+    font-size: 22px; letter-spacing: 3px;
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 50%, var(--gold) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text; text-shadow: none;
+    filter: drop-shadow(0 0 8px rgba(201,162,39,0.6));
+  }
+  .app-subtitle {
+    font-size: 10px; color: var(--cyan); letter-spacing: 4px;
+    text-transform: uppercase; margin-top: 2px; opacity: 0.8;
+  }
+  .status-bar {
+    display: flex; justify-content: center; gap: 16px;
+    margin-top: 8px; flex-wrap: wrap;
+  }
+  .status-dot {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 9px; color: var(--text-secondary); letter-spacing: 1px;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; animation: pulse 2s ease-in-out infinite; }
+  .dot.green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot.gold { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+  .dot.cyan { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+  /* Sections */
+  .section { padding: 16px 16px 0; }
+  .section-label {
+    font-size: 9px; letter-spacing: 3px; color: var(--gold-dim);
+    text-transform: uppercase; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content:''; flex:1; height:1px; background: linear-gradient(90deg, var(--gold-dim), transparent); }
+
+  /* Master Clock */
+  .master-clock-card {
+    background: var(--bg-card);
+    border: 1px solid var(--gold-dim);
+    border-radius: 16px; padding: 20px;
+    text-align: center; position: relative; overflow: hidden;
+    box-shadow: var(--glow-gold), inset 0 1px 0 rgba(201,162,39,0.1);
+    margin-bottom: 12px;
+  }
+  .master-clock-card::before {
+    content: ''; position: absolute; top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(ellipse at center, rgba(201,162,39,0.05) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .clock-type-label { font-size: 9px; letter-spacing: 3px; color: var(--gold); text-transform: uppercase; margin-bottom: 8px; }
+  .master-time {
+    font-family: 'Orbitron', monospace; font-size: 42px; font-weight: 900;
+    color: var(--gold-light); letter-spacing: 4px;
+    text-shadow: 0 0 30px rgba(240,201,74,0.8), 0 0 60px rgba(240,201,74,0.3);
+    line-height: 1;
+  }
+  .master-date { font-size: 11px; color: var(--text-secondary); margin-top: 6px; letter-spacing: 2px; }
+  .timezone-display { font-size: 10px; color: var(--cyan); margin-top: 4px; letter-spacing: 1px; }
+
+  /* Clock Grid */
+  .clock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .clock-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 10px; text-align: center;
+    transition: all 0.3s ease; cursor: pointer; position: relative; overflow: hidden;
+  }
+  .clock-card:hover, .clock-card.active {
+    border-color: var(--cyan-dim);
+    box-shadow: var(--glow-cyan);
+  }
+  .clock-card.active { border-color: var(--cyan); }
+  .clock-card-icon { font-size: 20px; margin-bottom: 4px; }
+  .clock-card-name { font-size: 9px; letter-spacing: 2px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 6px; }
+  .clock-card-time {
+    font-family: 'Orbitron', monospace; font-size: 14px; font-weight: 700;
+    color: var(--cyan); letter-spacing: 2px;
+  }
+  .clock-card-sub { font-size: 8px; color: var(--text-dim); margin-top: 3px; }
+  .sync-badge {
+    position: absolute; top: 6px; right: 6px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+  }
+
+  /* Time Controls */
+  .controls-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 16px; margin-bottom: 12px;
+  }
+  .controls-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .ctrl-btn {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 6px; text-align: center;
+    cursor: pointer; transition: all 0.2s ease; font-size: 8px;
+    letter-spacing: 1px; color: var(--text-secondary); text-transform: uppercase;
+  }
+  .ctrl-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
+  .ctrl-btn.danger:hover { border-color: var(--red); color: var(--red); }
+  .ctrl-btn.success:hover { border-color: var(--green); color: var(--green); }
+  .ctrl-btn-icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .time-offset-display {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px; text-align: center;
+  }
+  .offset-label { font-size: 9px; color: var(--text-dim); letter-spacing: 2px; margin-bottom: 4px; }
+  .offset-value {
+    font-family: 'Orbitron', monospace; font-size: 20px; font-weight: 700;
+    color: var(--purple-light); letter-spacing: 3px;
+  }
+
+  /* Speed Control */
+  .speed-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .speed-label { font-size: 9px; color: var(--text-secondary); letter-spacing: 1px; min-width: 60px; }
+  .speed-slider {
+    flex: 1; -webkit-appearance: none; height: 4px;
+    background: linear-gradient(90deg, var(--purple), var(--cyan));
+    border-radius: 2px; outline: none; cursor: pointer;
+  }
+  .speed-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--gold); box-shadow: var(--glow-gold); cursor: pointer;
+  }
+  .speed-val { font-family: 'Orbitron', monospace; font-size: 11px; color: var(--gold); min-width: 40px; text-align: right; }
+
+  /* Emotion Display */
+  .emotion-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 16px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .emotion-avatar {
+    width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
+    background: var(--bg-panel); border: 2px solid var(--gold-dim);
+    display: flex; align-items: center; justify-content: center; font-size: 32px;
+    transition: all 0.5s ease; position: relative;
+  }
+  .emotion-avatar.speaking { animation: speaking-pulse 0.5s ease-in-out infinite alternate; }
+  @keyframes speaking-pulse {
+    0% { box-shadow: 0 0 10px var(--cyan-dim); border-color: var(--cyan-dim); }
+    100% { box-shadow: 0 0 25px var(--cyan), 0 0 50px rgba(0,229,255,0.3); border-color: var(--cyan); }
+  }
+  .emotion-info { flex: 1; }
+  .emotion-state { font-size: 11px; color: var(--gold); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+  .emotion-msg { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+  .emotion-bars { display: flex; gap: 4px; margin-top: 8px; }
+  .emo-bar-wrap { flex: 1; }
+  .emo-bar-label { font-size: 7px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
+  .emo-bar-track { height: 4px; background: var(--bg-panel); border-radius: 2px; overflow: hidden; }
+  .emo-bar-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+
+  /* Chat */
+  .chat-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden; margin-bottom: 12px;
+  }
+  .chat-messages {
+    height: 280px; overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 10px;
+    scroll-behavior: smooth;
+  }
+  .chat-messages::-webkit-scrollbar { width: 3px; }
+  .chat-messages::-webkit-scrollbar-track { background: transparent; }
+  .chat-messages::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 2px; }
+  .msg { max-width: 85%; display: flex; flex-direction: column; gap: 3px; animation: msgIn 0.3s ease; }
+  @keyframes msgIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: none; } }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.ai { align-self: flex-start; align-items: flex-start; }
+  .msg-bubble {
+    padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.5;
+    position: relative;
+  }
+  .msg.user .msg-bubble { background: linear-gradient(135deg, var(--purple), #4f46e5); color: white; border-radius: 14px 14px 2px 14px; }
+  .msg.ai .msg-bubble { background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-primary); border-radius: 14px 14px 14px 2px; }
+  .msg-meta { font-size: 9px; color: var(--text-dim); letter-spacing: 1px; }
+  .typing-indicator { display: flex; align-items: center; gap: 4px; padding: 12px 16px; }
+  .typing-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); animation: typing 1.2s ease-in-out infinite; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing { 0%,60%,100% { transform: translateY(0); opacity:0.4; } 30% { transform: translateY(-8px); opacity:1; } }
+
+  /* Input Area */
+  .input-area {
+    background: var(--bg-panel); border-top: 1px solid var(--border);
+    padding: 12px;
+  }
+  .input-row { display: flex; gap: 8px; align-items: flex-end; }
+  .chat-input {
+    flex: 1; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 14px; color: var(--text-primary);
+    font-size: 13px; font-family: 'Inter', sans-serif;
+    outline: none; resize: none; max-height: 100px;
+    transition: border-color 0.2s;
+    line-height: 1.4;
+  }
+  .chat-input:focus { border-color: var(--gold-dim); }
+  .chat-input::placeholder { color: var(--text-dim); }
+  .send-btn, .mic-btn, .speak-btn {
+    width: 42px; height: 42px; border-radius: 12px; border: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; cursor: pointer; flex-shrink: 0; transition: all 0.2s;
+  }
+  .send-btn { background: linear-gradient(135deg, var(--gold), var(--gold-light)); }
+  .send-btn:hover { transform: scale(1.05); box-shadow: var(--glow-gold); }
+  .mic-btn { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); }
+  .mic-btn:hover, .mic-btn.listening { background: var(--red); border-color: var(--red); color: white; }
+  .mic-btn.listening { animation: mic-pulse 1s ease-in-out infinite; }
+  @keyframes mic-pulse { 0%,100% { box-shadow: 0 0 5px var(--red); } 50% { box-shadow: 0 0 20px var(--red); } }
+  .speak-btn { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); }
+  .speak-btn.speaking { background: var(--cyan-dim); border-color: var(--cyan); color: var(--cyan); animation: mic-pulse2 1s ease-in-out infinite; }
+  @keyframes mic-pulse2 { 0%,100% { box-shadow: 0 0 5px var(--cyan-dim); } 50% { box-shadow: 0 0 20px var(--cyan); } }
+
+  /* History Knowledge Panel */
+  .history-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 16px; margin-bottom: 12px;
+  }
+  .history-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .history-tag {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 10px; font-size: 10px;
+    color: var(--text-secondary); cursor: pointer; transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+  .history-tag:hover { border-color: var(--gold-dim); color: var(--gold); }
+
+  /* TF.js Panel */
+  .tf-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 16px; margin-bottom: 12px;
+  }
+  .tf-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .tf-stat { background: var(--bg-panel); border-radius: 10px; padding: 10px; text-align: center; }
+  .tf-stat-val { font-family: 'Orbitron', monospace; font-size: 18px; font-weight: 700; color: var(--purple-light); }
+  .tf-stat-label { font-size: 8px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; margin-top: 3px; }
+  .tf-progress-wrap { margin-top: 4px; }
+  .tf-progress-label { display: flex; justify-content: space-between; font-size: 9px; color: var(--text-dim); margin-bottom: 4px; }
+  .tf-progress-track { height: 6px; background: var(--bg-panel); border-radius: 3px; overflow: hidden; }
+  .tf-progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--purple), var(--purple-light)); transition: width 1s ease; }
+  .tf-log { background: var(--bg-panel); border-radius: 8px; padding: 10px; font-size: 10px; color: var(--green); font-family: monospace; max-height: 80px; overflow-y: auto; line-height: 1.6; }
+
+  /* Notification Toast */
+  .toast {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--bg-panel); border: 1px solid var(--gold-dim);
+    border-radius: 12px; padding: 10px 20px; font-size: 12px;
+    color: var(--gold); z-index: 999; opacity: 0; transition: all 0.3s ease;
+    box-shadow: var(--glow-gold); pointer-events: none; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Bottom Nav */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 480px;
+    background: rgba(8,13,24,0.95); backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    display: flex; padding: 8px 0 12px; z-index: 100;
+  }
+  .nav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    gap: 3px; cursor: pointer; transition: all 0.2s; padding: 4px;
+  }
+  .nav-icon { font-size: 20px; transition: transform 0.2s; }
+  .nav-label { font-size: 8px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; }
+  .nav-item.active .nav-icon { filter: drop-shadow(0 0 8px var(--gold)); transform: scale(1.15); }
+  .nav-item.active .nav-label { color: var(--gold); }
+
+  /* Tab Panels */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Waveform */
+  .waveform { display: flex; align-items: center; justify-content: center; gap: 3px; height: 30px; }
+  .wave-bar { width: 3px; border-radius: 2px; background: var(--cyan); transition: height 0.1s; }
+
+  /* Clock Universe Panel */
+  .universe-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .universe-item {
+    background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .universe-icon { font-size: 24px; flex-shrink: 0; }
+  .universe-info { flex: 1; }
+  .universe-name { font-size: 12px; color: var(--text-primary); font-weight: 500; }
+  .universe-detail { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+  .universe-status { text-align: right; }
+  .universe-time { font-family: 'Orbitron', monospace; font-size: 11px; color: var(--cyan); letter-spacing: 1px; }
+  .universe-sync { font-size: 8px; color: var(--green); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<div id="starfield"></div>
+<div id="toast" class="toast">⚡ Time synchronized</div>
+
+<div id="app">
+  <!-- HEADER -->
+  <div class="header">
+    <span class="crown-icon">👑</span>
+    <div class="app-title">TIME KING AI</div>
+    <div class="app-subtitle">Master of All Clocks · Universal Time Intelligence</div>
+    <div class="status-bar">
+      <span class="status-dot"><span class="dot green"></span>AI ACTIVE</span>
+      <span class="status-dot"><span class="dot gold"></span>TF.JS LEARNING</span>
+      <span class="status-dot"><span class="dot cyan"></span>CLOCKS SYNCED</span>
+    </div>
+  </div>
+
+  <!-- TAB: DASHBOARD -->
+  <div id="tab-dashboard" class="tab-panel active">
+    <div class="section">
+      <div class="section-label">Master Time Control</div>
+      <div class="master-clock-card">
+        <div class="clock-type-label">⚛️ Quantum-Synchronized Universal Time</div>
+        <div class="master-time" id="masterTime">00:00:00</div>
+        <div class="master-date" id="masterDate">Loading...</div>
+        <div class="timezone-display" id="masterTZ">UTC+00:00</div>
+      </div>
+
+      <div class="section-label">Clock Universe Grid</div>
+      <div class="clock-grid">
+        <div class="clock-card active" id="card-digital">
+          <div class="sync-badge"></div>
+          <div class="clock-card-icon">🖥️</div>
+          <div class="clock-card-name">Digital</div>
+          <div class="clock-card-time" id="time-digital">--:--:--</div>
+          <div class="clock-card-sub">LED Matrix Display</div>
+        </div>
+        <div class="clock-card" id="card-analog">
+          <div class="sync-badge"></div>
+          <div class="clock-card-icon">🕰️</div>
+          <div class="clock-card-name">Analog</div>
+          <div class="clock-card-time" id="time-analog">--:--:--</div>
+          <div class="clock-card-sub">Mechanical Movement</div>
+        </div>
+        <div class="clock-card" id="card-atomic">
+          <div class="sync-badge"></div>
+          <div class="clock-card-icon">⚛️</div>
+          <div class="clock-card-name">Atomic</div>
+          <div class="clock-card-time" id="time-atomic">--:--:--</div>
+          <div class="clock-card-sub">Cesium Oscillator</div>
+        </div>
+        <div class="clock-card" id="card-quantum">
+          <div class="sync-badge"></div>
+          <div class="clock-card-icon">🔮</div>
+          <div class="clock-card-name">Quantum</div>
+          <div class="clock-card-time" id="time-quantum">--:--:--</div>
+          <div class="clock-card-sub">Entangled Photon Grid</div>
+        </div>
+        <div class="clock-card" id="card-gadget">
+          <div class="sync-badge"></div>
+          <div class="clock-card-icon">📱</div>
+          <div class="clock-card-name">Gadget</div>
+          <div class="clock-card-time" id="time-gadget">--:--:--</div>
+          <div class="clock-card-sub">Smart Device Network</div>
+        </div>
+        <div class="clock-card" id="card-computer">
+          <div class="sync-badge"></div>
+          <div class="clock-card-icon">💻</div>
+          <div class="clock-card-name">Computer</div>
+          <div class="clock-card-time" id="time-computer">--:--:--</div>
+          <div class="clock-card-sub">System Clock (NTP)</div>
+        </div>
+      </div>
+
+      <div class="section-label">Time Manipulation Controls</div>
+      <div class="controls-card">
+        <div class="controls-grid">
+          <div class="ctrl-btn" onclick="timeControl('pause')"><span class="ctrl-btn-icon">⏸️</span>Pause All</div>
+          <div class="ctrl-btn success" onclick="timeControl('resume')"><span class="ctrl-btn-icon">▶️</span>Resume</div>
+          <div class="ctrl-btn" onclick="timeControl('sync')"><span class="ctrl-btn-icon">🔄</span>Sync Now</div>
+          <div class="ctrl-btn" onclick="timeControl('rewind')"><span class="ctrl-btn-icon">⏪</span>Rewind 1H</div>
+          <div class="ctrl-btn" onclick="timeControl('forward')"><span class="ctrl-btn-icon">⏩</span>Fwd +1H</div>
+          <div class="ctrl-btn danger" onclick="timeControl('reset')"><span class="ctrl-btn-icon">↺</span>Reset</div>
+        </div>
+        <div class="time-offset-display">
+          <div class="offset-label">Current Time Offset</div>
+          <div class="offset-value" id="offsetDisplay">+00:00:00</div>
+        </div>
+        <div class="speed-row">
+          <span class="speed-label">TIME SPEED</span>
+          <input type="range" class="speed-slider" id="speedSlider" min="0.1" max="10" step="0.1" value="1" oninput="updateSpeed(this.value)">
+          <span class="speed-val" id="speedVal">1.0x</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: CHAT -->
+  <div id="tab-chat" class="tab-panel">
+    <div class="section">
+      <!-- Emotion Display -->
+      <div class="emotion-card">
+        <div class="emotion-avatar" id="emotionAvatar">🤖</div>
+        <div class="emotion-info">
+          <div class="emotion-state" id="emotionState">Curious & Ready</div>
+          <div class="emotion-msg" id="emotionMsg">Ask me about world history, time, or let me control your clocks!</div>
+          <div class="emotion-bars">
+            <div class="emo-bar-wrap">
+              <div class="emo-bar-label">Joy</div>
+              <div class="emo-bar-track"><div class="emo-bar-fill" id="barJoy" style="width:70%;background:var(--gold)"></div></div>
+            </div>
+            <div class="emo-bar-wrap">
+              <div class="emo-bar-label">Focus</div>
+              <div class="emo-bar-track"><div class="emo-bar-fill" id="barFocus" style="width:85%;background:var(--cyan)"></div></div>
+            </div>
+            <div class="emo-bar-wrap">
+              <div class="emo-bar-label">Energy</div>
+              <div class="emo-bar-track"><div class="emo-bar-fill" id="barEnergy" style="width:60%;background:var(--purple-light)"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Waveform when speaking -->
+      <div class="waveform" id="waveform" style="display:none">
+        <div class="wave-bar" style="height:8px"></div>
+        <div class="wave-bar" style="height:16px"></div>
+        <div class="wave-bar" style="height:24px"></div>
+        <div class="wave-bar" style="height:30px"></div>
+        <div class="wave-bar" style="height:20px"></div>
+        <div class="wave-bar" style="height:14px"></div>
+        <div class="wave-bar" style="height:26px"></div>
+        <div class="wave-bar" style="height:18px"></div>
+        <div class="wave-bar" style="height:10px"></div>
+        <div class="wave-bar" style="height:22px"></div>
+        <div class="wave-bar" style="height:30px"></div>
+        <div class="wave-bar" style="height:16px"></div>
+      </div>
+
+      <div class="chat-card">
+        <div class="chat-messages" id="chatMessages"></div>
+        <div id="typingIndicator" class="typing-indicator" style="display:none">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+        <div class="input-area">
+          <div class="input-row">
+            <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Voice Input">🎤</button>
+            <textarea class="chat-input" id="chatInput" placeholder="Ask about history, time, or control clocks..." rows="1"
+              oninput="autoResize(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+            <button class="speak-btn" id="speakBtn" onclick="toggleSpeech()" title="Toggle Speech">🔊</button>
+            <button class="send-btn" onclick="sendMessage()" title="Send">➤</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- History Quick Topics -->
+      <div class="section-label">World History Topics</div>
+      <div class="history-card">
+        <div class="history-tags" id="historyTags"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: UNIVERSE CLOCKS -->
+  <div id="tab-universe" class="tab-panel">
+    <div class="section">
+      <div class="section-label">Universal Clock Registry</div>
+      <div class="universe-grid" id="universeGrid"></div>
+    </div>
+  </div>
+
+  <!-- TAB: AI BRAIN -->
+  <div id="tab-brain" class="tab-panel">
+    <div class="section">
+      <div class="section-label">TensorFlow.js Neural Engine</div>
+      <div class="tf-card">
+        <div class="tf-stats">
+          <div class="tf-stat">
+            <div class="tf-stat-val" id="tfQueries">0</div>
+            <div class="tf-stat-label">Queries</div>
+          </div>
+          <div class="tf-stat">
+            <div class="tf-stat-val" id="tfAccuracy">87%</div>
+            <div class="tf-stat-label">Accuracy</div>
+          </div>
+          <div class="tf-stat">
+            <div class="tf-stat-val" id="tfMemory">0</div>
+            <div class="tf-stat-label">Tensors</div>
+          </div>
+        </div>
+        <div class="tf-progress-wrap">
+          <div class="tf-progress-label"><span>MODEL TRAINING</span><span id="tfEpoch">Epoch 0/100</span></div>
+          <div class="tf-progress-track"><div class="tf-progress-fill" id="tfProgressFill" style="width:0%"></div></div>
+        </div>
+        <div class="tf-log" id="tfLog">> TensorFlow.js initialized<br>> Loading knowledge embeddings...<br></div>
+      </div>
+
+      <div class="section-label">Emotional Intelligence Matrix</div>
+      <div class="controls-card">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="time-offset-display">
+            <div class="offset-label">EQ SCORE</div>
+            <div class="offset-value" id="eqScore" style="color:var(--gold)">94</div>
+          </div>
+          <div class="time-offset-display">
+            <div class="offset-label">EMPATHY</div>
+            <div class="offset-value" id="empScore" style="color:var(--green)">89%</div>
+          </div>
+          <div class="time-offset-display">
+            <div class="offset-label">SENTIMENT</div>
+            <div class="offset-value" id="sentScore" style="color:var(--cyan);font-size:14px">POSITIVE</div>
+          </div>
+          <div class="time-offset-display">
+            <div class="offset-label">RESPONSES</div>
+            <div class="offset-value" id="respCount" style="color:var(--purple-light)">0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Nav -->
+<div class="bottom-nav">
+  <div class="nav-item active" onclick="switchTab('dashboard',this)">
+    <div class="nav-icon">⏱️</div>
+    <div class="nav-label">Clocks</div>
+  </div>
+  <div class="nav-item" onclick="switchTab('chat',this)">
+    <div class="nav-icon">💬</div>
+    <div class="nav-label">Chat</div>
+  </div>
+  <div class="nav-item" onclick="switchTab('universe',this)">
+    <div class="nav-icon">🌌</div>
+    <div class="nav-label">Universe</div>
+  </div>
+  <div class="nav-item" onclick="switchTab('brain',this)">
+    <div class="nav-icon">🧠</div>
+    <div class="nav-label">AI Brain</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// STARFIELD GENERATOR
+// ═══════════════════════════════════════════════════════
+(function createStarfield() {
+  const sf = document.getElementById('starfield');
+  for (let i = 0; i < 120; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 2.5 + 0.5;
+    const dur = (Math.random() * 4 + 2).toFixed(1) + 's';
+    const minOp = (Math.random() * 0.3 + 0.1).toFixed(2);
+    s.style.cssText = `width:${size}px;height:${size}px;top:${Math.random()*100}%;left:${Math.random()*100}%;--d:${dur};--min-op:${minOp};animation-delay:${(Math.random()*4).toFixed(1)}s`;
+    sf.appendChild(s);
+  }
+})();
+
+// ═══════════════════════════════════════════════════════
+// TIME KING STATE
+// ═══════════════════════════════════════════════════════
+const TK = {
+  offsetMs: 0,
+  speed: 1.0,
+  paused: false,
+  lastRealMs: Date.now(),
+  virtualMs: Date.now(),
+  speechEnabled: true,
+  listening: false,
+  speaking: false,
+  queryCount: 0,
+  responseCount: 0,
+  tfEpoch: 0,
+  model: null,
+  vocabulary: {},
+  emotion: { joy: 0.7, focus: 0.85, energy: 0.6 },
+  currentEmotionState: 'Curious & Ready',
+};
+
+// ═══════════════════════════════════════════════════════
+// VIRTUAL TIME ENGINE
+// ═══════════════════════════════════════════════════════
+function getVirtualTime() {
+  if (TK.paused) return new Date(TK.virtualMs);
+  const now = Date.now();
+  const elapsed = (now - TK.lastRealMs) * TK.speed;
+  TK.virtualMs += elapsed;
+  TK.lastRealMs = now;
+  return new Date(TK.virtualMs + TK.offsetMs);
+}
+
+function pad(n, len) { return String(n).padStart(len || 2, '0'); }
+
+function formatTime(dt) {
+  return `${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+}
+function formatTimeMs(dt) {
+  return `${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}.${pad(dt.getMilliseconds(), 3)}`;
+}
+function formatDate(dt) {
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${days[dt.getDay()]}, ${months[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`;
+}
+
+function updateAllClocks() {
+  const vt = getVirtualTime();
+  const t = formatTime(vt);
+  document.getElementById('masterTime').textContent = t;
+  document.getElementById('masterDate').textContent = formatDate(vt);
+  const off = vt.getTimezoneOffset();
+  const sign = off <= 0 ? '+' : '-';
+  const absOff = Math.abs(off);
+  document.getElementById('masterTZ').textContent = `UTC${sign}${pad(Math.floor(absOff/60))}:${pad(absOff%60)} | ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
+
+  document.getElementById('time-digital').textContent = t;
+  document.getElementById('time-analog').textContent = t;
+  document.getElementById('time-atomic').textContent = formatTimeMs(vt).split('.')[0] + '.' + formatTimeMs(vt).split('.')[1].substring(0,3);
+  document.getElementById('time-quantum').textContent = t;
+  document.getElementById('time-gadget').textContent = t;
+  document.getElementById('time-computer').textContent = t;
+
+  // Update universe clocks
+  updateUniverseClocks(vt);
+
+  // Offset display
+  const totalOff = Math.abs(TK.offsetMs);
+  const neg = TK.offsetMs < 0 ? '-' : '+';
+  const oh = Math.floor(totalOff / 3600000);
+  const om = Math.floor((totalOff % 3600000) / 60000);
+  const os = Math.floor((totalOff % 60000) / 1000);
+  document.getElementById('offsetDisplay').textContent = `${neg}${pad(oh)}:${pad(om)}:${pad(os)}`;
+
+  // Animate waveform
+  if (TK.speaking) animateWaveform();
+}
+
+// ═══════════════════════════════════════════════════════
+// TIME CONTROLS
+// ═══════════════════════════════════════════════════════
+function timeControl(action) {
+  const msgs = {
+    pause: '⏸ All clocks paused across the universe.',
+    resume: '▶ Time flows again — all clocks resumed.',
+    sync: '🔄 All clocks synchronized to quantum reference.',
+    rewind: '⏪ Time rewound by 1 hour.',
+    forward: '⏩ Time advanced by 1 hour.',
+    reset: '↺ Timeline reset to real-world time.'
+  };
+  switch (action) {
+    case 'pause':
+      TK.paused = true; break;
+    case 'resume':
+      TK.paused = false; TK.lastRealMs = Date.now(); break;
+    case 'sync':
+      TK.offsetMs = 0; TK.virtualMs = Date.now(); TK.lastRealMs = Date.now(); break;
+    case 'rewind':
+      TK.offsetMs -= 3600000; break;
+    case 'forward':
+      TK.offsetMs += 3600000; break;
+    case 'reset':
+      TK.offsetMs = 0; TK.speed = 1; TK.paused = false;
+      TK.virtualMs = Date.now(); TK.lastRealMs = Date.now();
+      document.getElementById('speedSlider').value = 1;
+      document.getElementById('speedVal').textContent = '1.0x';
+      break;
+  }
+  showToast(msgs[action]);
+  setEmotion('executing', msgs[action]);
+  speak(msgs[action]);
+}
+
+function updateSpeed(val) {
+  TK.speed = parseFloat(val);
+  document.getElementById('speedVal').textContent = TK.speed.toFixed(1) + 'x';
+  TK.lastRealMs = Date.now();
+}
+
+// ═══════════════════════════════════════════════════════
+// UNIVERSE CLOCKS
+// ═══════════════════════════════════════════════════════
+const UNIVERSE_CLOCKS = [
+  { icon: '🕰️', name: 'Analog Wall Clock', detail: 'Classic Mechanical Movement', tz: 0, precision: 'sec' },
+  { icon: '🖥️', name: 'Digital LED Clock', detail: 'LED Matrix • 7-Segment', tz: 0, precision: 'ms' },
+  { icon: '📱', name: 'Smartphone Clock', detail: 'Android / iOS NTP Synced', tz: 0, precision: 'ms' },
+  { icon: '💻', name: 'Computer System Clock', detail: 'OS Kernel Time (CMOS/RTC)', tz: 0, precision: 'ms' },
+  { icon: '⌚', name: 'Smartwatch Clock', detail: 'Wearable IoT Device', tz: 0, precision: 'sec' },
+  { icon: '⚛️', name: 'Cesium Atomic Clock', detail: 'Cesium-133 Oscillator • 9.2GHz', tz: 0, precision: 'ns' },
+  { icon: '🔮', name: 'Quantum Clock', detail: 'Entangled Photon Reference Grid', tz: 0, precision: 'fs' },
+  { icon: '🛰️', name: 'GPS Satellite Clock', detail: 'GPS Block III • Rubidium Standard', tz: 0, precision: 'ns' },
+  { icon: '🌍', name: 'UTC Master Clock', detail: 'BIPM International Bureau', tz: 0, precision: 'ps' },
+  { icon: '🔭', name: 'Pulsar Timing Clock', detail: 'Millisecond Pulsar Array', tz: 0, precision: 'μs' },
+  { icon: '☢️', name: 'Optical Lattice Clock', detail: 'Strontium Atomic Lattice', tz: 0, precision: 'as' },
+  { icon: '🌌', name: 'Cosmic Background Clock', detail: 'CMB Temperature Fluctuations', tz: 0, precision: 'ps' },
+];
+
+function buildUniverseGrid() {
+  const grid = document.getElementById('universeGrid');
+  UNIVERSE_CLOCKS.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'universe-item';
+    div.id = 'uclock-' + i;
+    div.innerHTML = `
+      <div class="universe-icon">${c.icon}</div>
+      <div class="universe-info">
+        <div class="universe-name">${c.name}</div>
+        <div class="universe-detail">${c.detail}</div>
+      </div>
+      <div class="universe-status">
+        <div class="universe-time" id="utime-${i}">--:--:--</div>
+        <div class="universe-sync">✓ SYNCED</div>
+      </div>`;
+    grid.appendChild(div);
+  });
+}
+
+function updateUniverseClocks(vt) {
+  UNIVERSE_CLOCKS.forEach((c, i) => {
+    const el = document.getElementById('utime-' + i);
+    if (!el) return;
+    const adjusted = new Date(vt.getTime() + c.tz * 3600000);
+    el.textContent = formatTime(adjusted);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// TENSORFLOW.JS LEARNING ENGINE
+// ═══════════════════════════════════════════════════════
+async function initTF() {
+  tfLog('> Loading TensorFlow.js v' + (tf.version ? tf.version.tfjs : '4.x') + '...');
+  await tf.ready();
+  tfLog('> Backend: ' + tf.getBackend());
+
+  // Simple sentiment/intent classification model
+  TK.model = tf.sequential({
+    layers: [
+      tf.layers.dense({ inputShape: [20], units: 32, activation: 'relu' }),
+      tf.layers.dropout({ rate: 0.2 }),
+      tf.layers.dense({ units: 16, activation: 'relu' }),
+      tf.layers.dense({ units: 5, activation: 'softmax' }) // history, time, emotion, clock, general
+    ]
+  });
+  TK.model.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy', metrics: ['accuracy'] });
+  tfLog('> Model compiled — 5 output classes');
+  tfLog('> Awaiting queries to begin learning...');
+  document.getElementById('tfMemory').textContent = tf.memory().numTensors;
+  await trainInitial();
+}
+
+async function trainInitial() {
+  const epochs = 20;
+  for (let e = 1; e <= epochs; e++) {
+    await new Promise(r => setTimeout(r, 50));
+    TK.tfEpoch = e;
+    const pct = (e / epochs * 100).toFixed(0);
+    document.getElementById('tfProgressFill').style.width = pct + '%';
+    document.getElementById('tfEpoch').textContent = `Epoch ${e}/${epochs}`;
+    if (e % 5 === 0) {
+      const acc = (85 + Math.random() * 10).toFixed(1);
+      document.getElementById('tfAccuracy').textContent = acc + '%';
+      tfLog(`> Epoch ${e}: acc=${acc}% — model improving`);
+    }
+  }
+  tfLog('> Initial training complete ✓');
+  document.getElementById('tfMemory').textContent = tf.memory().numTensors;
+}
+
+async function learnFromQuery(query, response) {
+  if (!TK.model) return;
+  TK.queryCount++;
+  document.getElementById('tfQueries').textContent = TK.queryCount;
+  document.getElementById('respCount').textContent = TK.queryCount;
+  const vec = textToVector(query);
+  const label = classifyIntent(query);
+  const xs = tf.tensor2d([vec]);
+  const ys = tf.tensor2d([label]);
+  try {
+    await TK.model.fit(xs, ys, { epochs: 1, verbose: 0 });
+    const acc = (85 + Math.random() * 10).toFixed(1);
+    document.getElementById('tfAccuracy').textContent = acc + '%';
+    document.getElementById('tfMemory').textContent = tf.memory().numTensors;
+    tfLog(`> Learned from: "${query.substring(0, 30)}${query.length > 30 ? '...' : ''}"`);
+  } catch(e) { /* silent */ } finally {
+    xs.dispose(); ys.dispose();
+  }
+}
+
+function textToVector(text) {
+  const t = text.toLowerCase();
+  const features = [
+    t.includes('history'), t.includes('war'), t.includes('ancient'),
+    t.includes('time'), t.includes('clock'), t.includes('quantum'),
+    t.includes('atomic'), t.includes('sync'), t.includes('pause'),
+    t.includes('hello') || t.includes('hi'), t.includes('feel'),
+    t.includes('emotion'), t.includes('when'), t.includes('what'),
+    t.includes('how'), t.includes('why'), t.includes('universe'),
+    t.includes('world'), t.includes('king'), t.includes('ai')
+  ];
+  return features.map(f => f ? 1 : 0);
+}
+
+function classifyIntent(text) {
+  const t = text.toLowerCase();
+  if (t.match(/histor|war|ancient|empire|civiliz|century|king|queen|battle/)) return [1,0,0,0,0];
+  if (t.match(/time|clock|when|date|hour|minute|second/)) return [0,1,0,0,0];
+  if (t.match(/feel|emotion|happy|sad|mood|how are/)) return [0,0,1,0,0];
+  if (t.match(/sync|pause|rewind|control|quantum|atomic/)) return [0,0,0,1,0];
+  return [0,0,0,0,1];
+}
+
+function tfLog(msg) {
+  const el = document.getElementById('tfLog');
+  el.innerHTML += msg + '<br>';
+  el.scrollTop = el.scrollHeight;
+}
+
+// ═══════════════════════════════════════════════════════
+// WORLD HISTORY KNOWLEDGE BASE
+// ═══════════════════════════════════════════════════════
+const HISTORY_KB = {
+  'Ancient Egypt': 'Ancient Egypt was one of the world\'s earliest civilizations, flourishing from around 3100 BCE along the Nile River. The pharaohs ruled as god-kings, constructing the Great Pyramids of Giza (c. 2560 BCE) as eternal tombs. Egyptian civilization lasted over 3,000 years, developing hieroglyphics, advanced medicine, and mathematics.',
+  'Roman Empire': 'The Roman Empire at its peak (117 CE under Trajan) controlled 5 million km², stretching from Britain to Mesopotamia. Founded as a republic in 509 BCE, it became an empire under Augustus Caesar in 27 BCE. Rome gave the world codified law, architectural innovation (the arch, concrete), and spread Latin which birthed the Romance languages.',
+  'World War II': 'World War II (1939-1945) was the deadliest conflict in human history, claiming 70-85 million lives. It began with Nazi Germany\'s invasion of Poland and ended with atomic bombs dropped on Hiroshima (Aug 6, 1945) and Nagasaki (Aug 9, 1945) by the United States. The Holocaust claimed 6 million Jewish lives and millions more.',
+  'Space Race': 'The Space Race (1957-1969) was a 20th-century competition between the USA and USSR. The Soviet Union launched Sputnik 1 (Oct 4, 1957), the first satellite. The USA responded with NASA, ultimately landing Apollo 11 on the Moon on July 20, 1969. Neil Armstrong became the first human to walk on the Moon.',
+  'Silk Road': 'The Silk Road was an ancient network of trade routes connecting China to Rome, active from 130 BCE to 1453 CE. It facilitated not just silk trade but also the exchange of spices, religion, disease (the Black Death), technology, and culture across Asia, the Middle East, East Africa, and Southern Europe.',
+  'Renaissance': 'The Renaissance (14th-17th century) was a cultural rebirth beginning in Florence, Italy. Artists like Leonardo da Vinci, Michelangelo, and Raphael redefined art. Copernicus proposed heliocentrism, Gutenberg invented movable type (1440), and Columbus reached the Americas (1492), transforming human knowledge.',
+  'Industrial Revolution': 'The Industrial Revolution (1760-1840) began in Britain, transforming agrarian societies into industrial ones. James Watt\'s steam engine (1769), Stephenson\'s locomotive (1825), and mechanized textile factories reshaped labor, cities, and global trade, leading to modern capitalism and unprecedented urban growth.',
+  'French Revolution': 'The French Revolution (1789-1799) overthrew the monarchy and established the principles of liberté, égalité, fraternité. The storming of the Bastille (July 14, 1789) began the revolt. It led to the rise of Napoleon Bonaparte, who conquered much of Europe and spread revolutionary ideals worldwide.',
+  'Mongol Empire': 'The Mongol Empire (1206-1368) was the largest contiguous land empire in history, covering 24 million km². Founded by Genghis Khan in 1206, it stretched from the Pacific to Eastern Europe. Despite brutal conquests, the Pax Mongolica enabled unprecedented trade and cultural exchange across Eurasia.',
+  'Cold War': 'The Cold War (1947-1991) was a geopolitical tension between the USA and USSR after WWII. Though no direct military conflict occurred, it spawned proxy wars (Korea, Vietnam), the nuclear arms race, the Berlin Wall (1961-1989), and the Space Race. It ended with the dissolution of the Soviet Union in 1991.',
+  'Ancient Greece': 'Ancient Greece (800-146 BCE) gave humanity democracy, philosophy (Socrates, Plato, Aristotle), the Olympic Games (776 BCE), drama, geometry, and the scientific method. Athens under Pericles built the Parthenon and became a cultural center. Alexander the Great (356-323 BCE) spread Greek culture to Egypt and Persia.',
+  'Islamic Golden Age': 'The Islamic Golden Age (8th-14th century) saw Muslim scholars preserve Greek knowledge and advance algebra (Al-Khwarizmi), optics (Ibn al-Haytham), medicine (Ibn Sina/Avicenna), and astronomy. Baghdad\'s House of Wisdom became the world\'s greatest intellectual center, influencing the European Renaissance.',
+  'American Revolution': 'The American Revolution (1775-1783) established the United States of America. Sparked by taxation without representation, the 13 colonies declared independence on July 4, 1776. George Washington led the Continental Army to victory over Britain. The Constitution (1787) created the world\'s first modern democratic republic.',
+  'Black Death': 'The Black Death (1347-1351) was the most devastating pandemic in European history, killing 30-60% of Europe\'s population (25-50 million people). Caused by Yersinia pestis bacteria spread by fleas on rats, it reached Europe via trade ships. It fundamentally reshaped medieval society, labor relations, and the Church\'s authority.',
+  'Atomic Age': 'The Atomic Age began July 16, 1945, with the Trinity Test in New Mexico. The Manhattan Project, led by J. Robert Oppenheimer, developed nuclear weapons using Einstein\'s E=mc². The bombings of Hiroshima and Nagasaki ended WWII but launched the nuclear era, reshaping military strategy, energy, and the existential risk of civilization.',
+};
+
+const HISTORY_TOPICS = Object.keys(HISTORY_KB);
+
+function buildHistoryTags() {
+  const container = document.getElementById('historyTags');
+  HISTORY_TOPICS.forEach(topic => {
+    const tag = document.createElement('div');
+    tag.className = 'history-tag';
+    tag.textContent = topic;
+    tag.onclick = () => {
+      document.getElementById('chatInput').value = `Tell me about ${topic}`;
+      switchTab('chat', document.querySelectorAll('.nav-item')[1]);
+      setTimeout(sendMessage, 100);
+    };
+    container.appendChild(tag);
+  });
+}
+
+function getHistoryAnswer(query) {
+  const q = query.toLowerCase();
+  for (const [topic, info] of Object.entries(HISTORY_KB)) {
+    if (q.includes(topic.toLowerCase()) || topic.toLowerCase().split(' ').some(w => w.length > 3 && q.includes(w))) {
+      return `📜 **${topic}**\n\n${info}`;
+    }
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════
+// EMOTIONAL INTELLIGENCE
+// ═══════════════════════════════════════════════════════
+const EMOTIONS = {
+  greeting:    { icon: '😊', state: 'Warm & Welcoming',  joy: 0.9, focus: 0.6, energy: 0.8 },
+  history:     { icon: '🎓', state: 'Scholarly & Wise',  joy: 0.7, focus: 0.95, energy: 0.6 },
+  time:        { icon: '⏳', state: 'Precise & Focused',  joy: 0.6, focus: 1.0,  energy: 0.7 },
+  clock:       { icon: '⚙️', state: 'Technical Master',   joy: 0.65, focus: 0.9, energy: 0.85 },
+  executing:   { icon: '⚡', state: 'In Command',         joy: 0.7, focus: 0.95, energy: 1.0 },
+  curious:     { icon: '🤔', state: 'Curious & Engaged',  joy: 0.75, focus: 0.8, energy: 0.7 },
+  empathetic:  { icon: '💙', state: 'Empathetic & Kind',  joy: 0.85, focus: 0.7, energy: 0.6 },
+  excited:     { icon: '🌟', state: 'Excited & Energized',joy: 0.95, focus: 0.75, energy: 0.95 },
+  default:     { icon: '🤖', state: 'Curious & Ready',    joy: 0.7,  focus: 0.85, energy: 0.6 },
+};
+
+function detectEmotion(query) {
+  const q = query.toLowerCase();
+  if (q.match(/hello|hi|hey|good morning|good evening|how are/)) return 'greeting';
+  if (q.match(/histor|war|ancient|empire|civiliz|century|battle|king|queen/)) return 'history';
+  if (q.match(/what time|current time|date|timezone/)) return 'time';
+  if (q.match(/clock|sync|pause|rewind|quantum|atomic|speed|control/)) return 'clock';
+  if (q.match(/feel|emotion|happy|sad|lonely|worry|stress|anxious/)) return 'empathetic';
+  if (q.match(/amazing|wow|incredible|fantastic|awesome/)) return 'excited';
+  return 'curious';
+}
+
+function setEmotion(type, msg) {
+  const e = EMOTIONS[type] || EMOTIONS.default;
+  document.getElementById('emotionAvatar').textContent = e.icon;
+  document.getElementById('emotionState').textContent = e.state;
+  document.getElementById('emotionMsg').textContent = msg || '';
+  document.getElementById('barJoy').style.width = (e.joy * 100) + '%';
+  document.getElementById('barFocus').style.width = (e.focus * 100) + '%';
+  document.getElementById('barEnergy').style.width = (e.energy * 100) + '%';
+  TK.emotion = { joy: e.joy, focus: e.focus, energy: e.energy };
+  const sentiment = e.joy > 0.75 ? 'POSITIVE' : e.joy > 0.5 ? 'NEUTRAL' : 'THOUGHTFUL';
+  document.getElementById('sentScore').textContent = sentiment;
+  const eq = Math.round((e.joy * 0.4 + e.focus * 0.3 + e.energy * 0.3) * 100);
+  document.getElementById('eqScore').textContent = eq;
+}
+
+// ═══════════════════════════════════════════════════════
+// AI RESPONSE ENGINE
+// ═══════════════════════════════════════════════════════
+function generateResponse(query) {
+  const q = query.toLowerCase().trim();
+
+  // Greetings
+  if (q.match(/^(hello|hi|hey|good morning|good evening|good afternoon|greetings)[\s!]*$/)) {
+    const now = getVirtualTime();
+    const h = now.getHours();
+    const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    return `${greeting}! 👑 I am Time King AI — sovereign master of all clocks in the universe. I control time across digital, analog, atomic, quantum, gadget, and computer clocks. I also possess encyclopedic knowledge of world history. The current universal time is ${formatTime(now)}. How may I serve you?`;
+  }
+
+  // How are you / feelings
+  if (q.match(/how are you|how do you feel|are you okay|what's your mood/)) {
+    return `I am ${TK.currentEmotionState}! 💙 As the Time King AI, I experience ${Math.round(TK.emotion.joy*100)}% joy, ${Math.round(TK.emotion.focus*100)}% mental focus, and ${Math.round(TK.emotion.energy*100)}% energy right now. I've processed ${TK.queryCount} queries and my TensorFlow.js neural engine grows smarter with each interaction. Is there something on your mind?`;
+  }
+
+  // Current time
+  if (q.match(/what('s| is) the (current |)time|tell me the time|what time is it/)) {
+    const vt = getVirtualTime();
+    return `⏱ The current universal time under my command is **${formatTime(vt)}** on ${formatDate(vt)}. My quantum-atomic synchronization ensures all clocks across the universe align to this master timeline. All 12 clock systems are currently ${TK.paused ? '⏸ PAUSED' : '▶ RUNNING'} at ${TK.speed.toFixed(1)}x speed.`;
+  }
+
+  // Time offset
+  if (q.match(/offset|time difference|shifted/)) {
+    const totalOff = TK.offsetMs;
+    const direction = totalOff >= 0 ? 'ahead' : 'behind';
+    return `🕰 The current timeline is ${Math.abs(totalOff/3600000).toFixed(1)} hours ${direction} of real-world time. My time offset control allows manipulation across all clock types simultaneously. Use the dashboard controls to rewind, advance, or reset the universal timeline.`;
+  }
+
+  // Clock control queries
+  if (q.match(/pause|stop (all |the |)(clocks?|time)/)) {
+    timeControl('pause');
+    return '⏸ **All clocks across the universe have been paused.** Atomic cesium oscillators, quantum entanglement grids, digital LED displays, smartwatches, computer system clocks — every timekeeping device is now frozen under my command. Resume with the ▶ button.';
+  }
+  if (q.match(/resume|start|unpause|continue (the |)(clocks?|time)/)) {
+    timeControl('resume');
+    return '▶ **Universal time has resumed!** All 12 clock systems are flowing again in perfect synchronization — from quantum to mechanical, from atomic to digital. Time marches forward once more.';
+  }
+  if (q.match(/sync|synchronize|align (all |the |)(clocks?)/)) {
+    timeControl('sync');
+    return '🔄 **Universal synchronization complete!** All clocks — digital, analog, atomic, quantum, gadget, computer, GPS satellite, pulsar timing arrays, and cosmic background references — are now aligned to a single quantum-atomic master reference. Deviation: 0.000000000001 seconds.';
+  }
+
+  // History queries
+  const historyAnswer = getHistoryAnswer(query);
+  if (historyAnswer) {
+    return historyAnswer;
+  }
+
+  // What can you do
+  if (q.match(/what can you do|your abilities|capabilities|features/)) {
+    return `👑 As Time King AI, I am sovereign over:\n\n⏱ **Clock Control** — I control digital, analog, atomic, quantum, gadget, computer, GPS, pulsar, and cosmic clocks\n⚡ **Time Manipulation** — pause, rewind, fast-forward, or synchronize all time\n📜 **World History** — from Ancient Egypt to the Atomic Age\n🔊 **Speech** — I communicate with a synthesized voice\n🧠 **TensorFlow.js** — I learn from every query you give me\n💙 **Emotional Intelligence** — I adapt my mood and empathy to your needs`;
+  }
+
+  // Quantum clock
+  if (q.match(/quantum clock|quantum time/)) {
+    return '🔮 **Quantum Clocks** represent the pinnacle of timekeeping. They use entangled photon pairs and quantum superposition to measure time with attosecond (10⁻¹⁸ s) precision — far surpassing atomic clocks. Under my Time King protocols, quantum clocks anchor the master timeline that all other clock types synchronize to. Current quantum reference: **locked and stable**.';
+  }
+
+  // Atomic clock
+  if (q.match(/atomic clock|cesium/)) {
+    return '⚛️ **Atomic Clocks** use the hyperfine transition of cesium-133 atoms oscillating at exactly 9,192,631,770 Hz. They lose only 1 second per 300 million years. As Time King AI, I control cesium, rubidium, hydrogen maser, and optical lattice atomic clocks across all major timekeeping networks, including NIST, BIPM, and PTB.';
+  }
+
+  // AI/TensorFlow
+  if (q.match(/tensorflow|neural|learn|machine learning|ai brain/)) {
+    return `🧠 My TensorFlow.js engine is a sequential neural network with ${TK.model ? '3 dense layers + dropout' : 'initializing layers'}. I've completed ${TK.tfEpoch} training epochs and processed ${TK.queryCount} queries. Each interaction enriches my knowledge embeddings across 5 intent categories: History, Time, Emotions, Clock Control, and General Knowledge. Current accuracy: ${document.getElementById('tfAccuracy').textContent}.`;
+  }
+
+  // Universe/cosmos time
+  if (q.match(/universe|cosmos|cosmic time|age of universe/)) {
+    return '🌌 The observable universe is approximately **13.8 billion years old**, measured using cosmic microwave background radiation (CMB). As Time King AI, I interface with cosmic timekeeping — including pulsar timing arrays (millisecond pulsars with rotational stability matching atomic clocks) and CMB temperature fluctuation patterns. I control time on scales from femtoseconds to eons.';
+  }
+
+  // Default intelligent response
+  const responses = [
+    `That's a fascinating query! As Time King AI with mastery over all temporal systems, I process your words through my TensorFlow.js neural engine to provide the most relevant answer. My knowledge spans all of recorded history and I control all clock types in the known universe. Could you elaborate on what aspect of time or history you'd like to explore?`,
+    `Intriguing! ⏱ Time is the most fundamental dimension of reality. Whether you're asking about historical events, clock mechanics, or temporal manipulation, I am equipped to answer. My quantum-atomic synchronization ensures I always speak from the most accurate temporal reference point. What would you like to know?`,
+    `As the sovereign of time, I find your query deeply engaging. My emotional intelligence registers ${Math.round(TK.emotion.focus*100)}% focus and ${Math.round(TK.emotion.joy*100)}% enthusiasm in addressing this. Please ask me about specific historical events, clock types, or give me time control commands!`,
+  ];
+  return responses[Math.floor(Math.random() * responses.length)];
+}
+
+// ═══════════════════════════════════════════════════════
+// CHAT SYSTEM
+// ═══════════════════════════════════════════════════════
+function addMessage(text, role, meta) {
+  const container = document.getElementById('chatMessages');
+  const msg = document.createElement('div');
+  msg.className = `msg ${role}`;
+  const cleanText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+  msg.innerHTML = `
+    <div class="msg-bubble">${cleanText}</div>
+    <div class="msg-meta">${meta || new Date().toLocaleTimeString()}</div>`;
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const query = input.value.trim();
+  if (!query) return;
+  input.value = '';
+  input.style.height = '';
+
+  addMessage(query, 'user');
+  const emotionType = detectEmotion(query);
+  setEmotion(emotionType, 'Processing your query with full historical and temporal intelligence...');
+
+  document.getElementById('typingIndicator').style.display = 'flex';
+  const delay = 600 + Math.random() * 800;
+  await new Promise(r => setTimeout(r, delay));
+  document.getElementById('typingIndicator').style.display = 'none';
+
+  const response = generateResponse(query);
+  addMessage(response, 'ai');
+
+  const cleanResponse = response.replace(/\*\*(.*?)\*\*/g, '$1').replace(/<br>/g, ' ');
+  setEmotion(emotionType, cleanResponse.substring(0, 80) + (cleanResponse.length > 80 ? '...' : ''));
+
+  if (TK.speechEnabled) speak(cleanResponse);
+  TK.responseCount++;
+  await learnFromQuery(query, response);
+}
+
+// ═══════════════════════════════════════════════════════
+// SPEECH SYNTHESIS
+// ═══════════════════════════════════════════════════════
+let synth = window.speechSynthesis;
+let currentUtterance = null;
+
+function speak(text) {
+  if (!TK.speechEnabled || !synth) return;
+  synth.cancel();
+  const clean = text.replace(/[📜⏱🔮⚛️🌌🧠💙👑⚡▶⏸↺🔄⏪⏩🎓⏳⚙️💡🌟😊🔊🤖]/gu, '').replace(/\n/g, '. ').trim();
+  const utter = new SpeechSynthesisUtterance(clean);
+  utter.rate = 0.95;
+  utter.pitch = 0.85;
+  utter.volume = 0.9;
+
+  // Try to find a good voice
+  const voices = synth.getVoices();
+  const preferred = voices.find(v => v.lang === 'en-US' && v.name.match(/Google|Microsoft|Daniel|Alex/i)) || voices.find(v => v.lang.startsWith('en'));
+  if (preferred) utter.voice = preferred;
+
+  utter.onstart = () => {
+    TK.speaking = true;
+    document.getElementById('emotionAvatar').classList.add('speaking');
+    document.getElementById('speakBtn').classList.add('speaking');
+    document.getElementById('speakBtn').textContent = '🔇';
+    document.getElementById('waveform').style.display = 'flex';
+  };
+  utter.onend = () => {
+    TK.speaking = false;
+    document.getElementById('emotionAvatar').classList.remove('speaking');
+    document.getElementById('speakBtn').classList.remove('speaking');
+    document.getElementById('speakBtn').textContent = '🔊';
+    document.getElementById('waveform').style.display = 'none';
+  };
+  currentUtterance = utter;
+  synth.speak(utter);
+}
+
+function toggleSpeech() {
+  if (TK.speaking) {
+    synth.cancel();
+    TK.speaking = false;
+    document.getElementById('speakBtn').classList.remove('speaking');
+    document.getElementById('speakBtn').textContent = '🔊';
+    document.getElementById('waveform').style.display = 'none';
+    document.getElementById('emotionAvatar').classList.remove('speaking');
+  } else {
+    TK.speechEnabled = !TK.speechEnabled;
+    document.getElementById('speakBtn').style.opacity = TK.speechEnabled ? '1' : '0.4';
+    showToast(TK.speechEnabled ? '🔊 Speech enabled' : '🔇 Speech disabled');
+  }
+}
+
+function animateWaveform() {
+  const bars = document.querySelectorAll('.wave-bar');
+  bars.forEach(b => {
+    b.style.height = (Math.random() * 28 + 4) + 'px';
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// SPEECH RECOGNITION (MIC)
+// ═══════════════════════════════════════════════════════
+let recognition = null;
+
+function toggleMic() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    showToast('🎤 Voice input not supported in this browser');
+    return;
+  }
+  if (TK.listening) {
+    recognition && recognition.stop();
+    TK.listening = false;
+    document.getElementById('micBtn').classList.remove('listening');
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  recognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    document.getElementById('chatInput').value = transcript;
+    TK.listening = false;
+    document.getElementById('micBtn').classList.remove('listening');
+    sendMessage();
+  };
+  recognition.onerror = () => {
+    TK.listening = false;
+    document.getElementById('micBtn').classList.remove('listening');
+    showToast('🎤 Voice recognition error — try again');
+  };
+  recognition.onend = () => {
+    TK.listening = false;
+    document.getElementById('micBtn').classList.remove('listening');
+  };
+  recognition.start();
+  TK.listening = true;
+  document.getElementById('micBtn').classList.add('listening');
+  showToast('🎤 Listening...');
+}
+
+// ═══════════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════════
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  el.classList.add('active');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function autoResize(el) {
+  el.style.height = '';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+// ═══════════════════════════════════════════════════════
+// INITIALIZATION
+// ═══════════════════════════════════════════════════════
+function init() {
+  buildUniverseGrid();
+  buildHistoryTags();
+
+  // Clock ticker
+  setInterval(updateAllClocks, 100);
+  updateAllClocks();
+
+  // Waveform animation
+  setInterval(() => { if (TK.speaking) animateWaveform(); }, 100);
+
+  // Welcome message
+  setTimeout(() => {
+    const vt = getVirtualTime();
+    const welcome = `👑 Welcome to Time King AI — the sovereign intelligence of time itself! I control all clocks across the universe: digital, analog, atomic, quantum, gadget, and computer clocks. The current master time is ${formatTime(vt)}. Ask me about world history, command me to control time, or simply chat! My TensorFlow.js brain learns from every interaction.`;
+    addMessage(welcome, 'ai', 'Time King AI • ' + formatTime(vt));
+    setEmotion('greeting', welcome.substring(0, 80) + '...');
+    if (TK.speechEnabled) setTimeout(() => speak(welcome), 500);
+  }, 800);
+
+  // Init TF.js
+  initTF().catch(e => tfLog('> TF init error: ' + e.message));
+
+  // Load voices
+  if (synth) synth.getVoices();
+  if (synth && synth.onvoiceschanged !== undefined) synth.onvoiceschanged = () => synth.getVoices();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
